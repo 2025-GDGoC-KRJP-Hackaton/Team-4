@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disaster Assistant for Blind</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stomp-websocket@2.3.4-next/lib/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .notification {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            border-left: 5px solid #007bff;
+        }
+        .notification.disaster {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .notification.location {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0069d9;
+        }
+        input, select {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Disaster Assistant for Blind</h1>
+
+        <div id="login-form" class="controls">
+            <h2>Login</h2>
+            <div>
+                <input type="text" id="id-or-email" placeholder="ID or Email" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button onclick="login()">Login</button>
+            </div>
+            <p>Don't have an account? <a href="#" onclick="toggleForms('register')">Register</a></p>
+        </div>
+
+        <div id="register-form" class="controls hidden">
+            <h2>Register - Basic Information</h2>
+            <div>
+                <input type="email" id="reg-email" placeholder="Email" required>
+                <input type="password" id="reg-password" placeholder="Password" required>
+                <input type="text" id="reg-name" placeholder="Full Name" required>
+            </div>
+            <div style="margin-top: 10px;">
+                <button onclick="register()">Register</button>
+            </div>
+            <p>Already have an account? <a href="#" onclick="toggleForms('login')">Login</a></p>
+        </div>
+
+        <div id="medical-form" class="controls hidden">
+            <h2>Medical Information</h2>
+            <div>
+                <input type="number" id="med-age" placeholder="Age">
+                <input type="text" id="med-height" placeholder="Height (cm)">
+                <input type="text" id="med-weight" placeholder="Weight (kg)">
+                <select id="med-blood-type">
+                    <option value="">Blood Type</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                </select>
+            </div>
+            <div style="margin-top: 10px;">
+                <input type="text" id="med-medical" placeholder="Medical Conditions">
+                <input type="text" id="med-emergency-name" placeholder="Emergency Contact Name">
+                <input type="text" id="med-emergency-phone" placeholder="Emergency Contact Phone">
+                <input type="text" id="med-address" placeholder="Address">
+            </div>
+            <div style="margin-top: 10px;">
+                <button onclick="updateMedicalInfo()">Save Medical Information</button>
+                <button onclick="skipMedicalInfo()">Skip for Now</button>
+            </div>
+        </div>
+
+        <div id="user-panel" class="controls hidden">
+            <h2>Welcome, <span id="user-name"></span></h2>
+            <p>You are logged in as: <span id="user-email"></span></p>
+            <button onclick="logout()">Logout</button>
+            <button onclick="testDisaster()">Test Disaster Notification</button>
+
+            <div style="margin-top: 15px;">
+                <h3>Send Location and Media</h3>
+                <div>
+                    <label for="image-upload">Image of surroundings:</label>
+                    <input type="file" id="image-upload" accept="image/*" capture="environment">
+                </div>
+                <div style="margin-top: 10px;">
+                    <label for="voice-upload">Voice message:</label>
+                    <input type="file" id="voice-upload" accept="audio/*" capture>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button onclick="sendLocation()">Send Current Location and Media</button>
+                </div>
+            </div>
+        </div>
+
+        <h2>Notifications</h2>
+        <div id="notifications"></div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let currentUser = null;
+
+        // Check if user is already logged in
+        window.onload = function() {
+            const user = localStorage.getItem('currentUser');
+            if (user) {
+                currentUser = JSON.parse(user);
+                showUserPanel();
+                connectWebSocket();
+            }
+        };
+
+        function toggleForms(formToShow) {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('medical-form').classList.add('hidden');
+
+            if (formToShow) {
+                document.getElementById(formToShow + '-form').classList.remove('hidden');
+            }
+        }
+
+        function showUserPanel() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('medical-form').classList.add('hidden');
+            document.getElementById('user-panel').classList.remove('hidden');
+
+            document.getElementById('user-name').textContent = currentUser.name;
+            document.getElementById('user-email').textContent = currentUser.email;
+        }
+
+        function login() {
+            const idOrEmail = document.getElementById('id-or-email').value;
+            const password = document.getElementById('password').value;
+
+            // Determine if input is an ID (number) or email
+            const isId = !isNaN(idOrEmail) && idOrEmail.trim() !== '';
+
+            const loginData = {
+                password: password
+            };
+
+            // Set either id or email based on the input
+            if (isId) {
+                loginData.id = idOrEmail;
+            } else {
+                loginData.email = idOrEmail;
+            }
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(loginData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Login failed');
+                }
+                return response.json();
+            })
+            .then(data => {
+                currentUser = data.user;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                showUserPanel();
+                connectWebSocket();
+                addNotification('Logged in successfully', 'info');
+            })
+            .catch(error => {
+                addNotification('Login failed: ' + error.message, 'error');
+            });
+        }
+
+        function register() {
+            const user = {
+                email: document.getElementById('reg-email').value,
+                password: document.getElementById('reg-password').value,
+                name: document.getElementById('reg-name').value
+            };
+
+            fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(user)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Registration failed');
+                }
+                return response.json();
+            })
+            .then(data => {
+                currentUser = data;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                addNotification('Registration successful. Please add your medical information.', 'info');
+                toggleForms('medical');
+            })
+            .catch(error => {
+                addNotification('Registration failed: ' + error.message, 'error');
+            });
+        }
+
+        function updateMedicalInfo() {
+            const medicalInfo = {
+                age: document.getElementById('med-age').value ? parseInt(document.getElementById('med-age').value) : null,
+                height: document.getElementById('med-height').value ? parseFloat(document.getElementById('med-height').value) : null,
+                weight: document.getElementById('med-weight').value ? parseFloat(document.getElementById('med-weight').value) : null,
+                bloodType: document.getElementById('med-blood-type').value,
+                medicalConditions: document.getElementById('med-medical').value,
+                emergencyContactName: document.getElementById('med-emergency-name').value,
+                emergencyContactPhone: document.getElementById('med-emergency-phone').value,
+                address: document.getElementById('med-address').value
+            };
+
+            fetch('/api/medical/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(medicalInfo)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to update medical information');
+                }
+                return response.json();
+            })
+            .then(data => {
+                addNotification('Medical information updated successfully', 'info');
+                showUserPanel();
+                connectWebSocket();
+            })
+            .catch(error => {
+                addNotification('Failed to update medical information: ' + error.message, 'error');
+            });
+        }
+
+        function skipMedicalInfo() {
+            addNotification('Medical information skipped. You can update it later.', 'info');
+            showUserPanel();
+            connectWebSocket();
+        }
+
+        function logout() {
+            fetch('/api/auth/logout', {
+                method: 'POST'
+            })
+            .then(() => {
+                localStorage.removeItem('currentUser');
+                currentUser = null;
+
+                if (stompClient) {
+                    stompClient.disconnect();
+                    stompClient = null;
+                }
+
+                document.getElementById('user-panel').classList.add('hidden');
+                document.getElementById('login-form').classList.remove('hidden');
+                addNotification('Logged out successfully', 'info');
+            });
+        }
+
+        function connectWebSocket() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, frame => {
+                console.log('Connected to WebSocket: ' + frame);
+
+                // Subscribe to broadcast channel
+                stompClient.subscribe('/topic/broadcast', notification => {
+                    const message = JSON.parse(notification.body);
+                    addNotification(message.message, 'info');
+                });
+
+                // Subscribe to user-specific channel
+                stompClient.subscribe('/topic/user/' + currentUser.id, notification => {
+                    const message = JSON.parse(notification.body);
+
+                    if (message.type === 'DISASTER_GUIDANCE') {
+                        addNotification(message.message, 'disaster');
+                    } else if (message.type === 'LOCATION_GUIDANCE') {
+                        addNotification(message.message, 'location');
+                    }
+                });
+            }, error => {
+                console.error('WebSocket connection error: ', error);
+                addNotification('WebSocket connection error', 'error');
+            });
+        }
+
+        function testDisaster() {
+            fetch('/api/disaster/test', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Test failed');
+                }
+                return response.json();
+            })
+            .then(data => {
+                addNotification('Test disaster notification sent', 'info');
+            })
+            .catch(error => {
+                addNotification('Test failed: ' + error.message, 'error');
+            });
+        }
+
+        function sendLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    const timestamp = new Date().toISOString();
+
+                    // Get the uploaded files
+                    const imageFile = document.getElementById('image-upload').files[0];
+                    const voiceFile = document.getElementById('voice-upload').files[0];
+
+                    // Create location data JSON object
+                    const locationData = {
+                        latitude: latitude,
+                        longitude: longitude,
+                        timestamp: timestamp
+                    };
+
+                    // Create FormData object for multipart/form-data
+                    const formData = new FormData();
+
+                    // Add location data as JSON
+                    formData.append('locationData', new Blob([JSON.stringify(locationData)], {
+                        type: 'application/json'
+                    }));
+
+                    // Add files if they exist
+                    if (imageFile) {
+                        formData.append('image', imageFile);
+                    }
+
+                    if (voiceFile) {
+                        formData.append('voice', voiceFile);
+                    }
+
+                    // Send the multipart/form-data request
+                    fetch('/api/disaster/location', {
+                        method: 'POST',
+                        body: formData
+                        // Don't set Content-Type header, browser will set it with boundary
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to send location and media');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Display a success message
+                        addNotification('Location and media sent successfully', 'info');
+
+                        // Display the guidance from the HTTP response
+                        if (data.guidance) {
+                            addNotification(data.guidance, 'location');
+                        }
+
+                        // Clear file inputs
+                        document.getElementById('image-upload').value = '';
+                        document.getElementById('voice-upload').value = '';
+                    })
+                    .catch(error => {
+                        addNotification('Failed to send location and media: ' + error.message, 'error');
+                    });
+                }, error => {
+                    addNotification('Error getting location: ' + error.message, 'error');
+                });
+            } else {
+                addNotification('Geolocation is not supported by this browser', 'error');
+            }
+        }
+
+        function addNotification(message, type) {
+            const notificationsDiv = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+
+            notificationsDiv.insertBefore(notification, notificationsDiv.firstChild);
+
+            // Also speak the message for blind users
+            if ('speechSynthesis' in window) {
+                const speech = new SpeechSynthesisUtterance(message);
+                window.speechSynthesis.speak(speech);
+            }
+        }
+    </script>
+</body>
+</html>

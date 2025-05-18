@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.korea.gdg.disasterassistantforblind.mapper.MedicalInfoMapper">
+    
+    <select id="findByUserId" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.medical.model.MedicalInfo">
+        SELECT * FROM medical_info WHERE user_id = #{userId}
+    </select>
+    
+    <select id="findById" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.medical.model.MedicalInfo">
+        SELECT * FROM medical_info WHERE id = #{id}
+    </select>
+    
+    <select id="findAll" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.medical.model.MedicalInfo">
+        SELECT * FROM medical_info
+    </select>
+    
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO medical_info (user_id, age, height, weight, blood_type,
+            medical_conditions, emergency_contact_name, emergency_contact_phone, address,
+            last_latitude, last_longitude, last_location_update, created_at, updated_at)
+        VALUES (#{userId}, #{age}, #{height}, #{weight}, #{bloodType},
+            #{medicalConditions}, #{emergencyContactName}, #{emergencyContactPhone}, #{address},
+            #{lastLatitude}, #{lastLongitude}, #{lastLocationUpdate}, #{createdAt}, #{updatedAt})
+    </insert>
+    
+    <update id="update">
+        UPDATE medical_info SET age = #{age}, height = #{height}, weight = #{weight},
+            blood_type = #{bloodType}, medical_conditions = #{medicalConditions},
+            emergency_contact_name = #{emergencyContactName}, emergency_contact_phone = #{emergencyContactPhone},
+            address = #{address}, updated_at = #{updatedAt}
+        WHERE user_id = #{userId}
+    </update>
+    
+    <update id="updateLocation">
+        UPDATE medical_info SET last_latitude = #{latitude}, last_longitude = #{longitude},
+            last_location_update = #{updateTime} WHERE user_id = #{userId}
+    </update>
+    
+    <delete id="deleteByUserId">
+        DELETE FROM medical_info WHERE user_id = #{userId}
+    </delete>
+    
+    <delete id="delete">
+        DELETE FROM medical_info WHERE id = #{id}
+    </delete>
+    
+</mapper>
