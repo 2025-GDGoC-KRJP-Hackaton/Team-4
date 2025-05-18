@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.korea.gdg.disasterassistantforblind.modules.disaster.mapper.EarthquakeMapper">
+    
+    <select id="findById" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.disaster.model.Earthquake">
+        SELECT * FROM earthquakes WHERE id = #{id}
+    </select>
+    
+    <select id="findAll" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.disaster.model.Earthquake">
+        SELECT * FROM earthquakes
+    </select>
+    
+    <select id="findAllActive" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.disaster.model.Earthquake">
+        SELECT * FROM earthquakes WHERE active = true ORDER BY time DESC
+    </select>
+    
+    <select id="findRecentEarthquakes" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.disaster.model.Earthquake">
+        SELECT * FROM earthquakes WHERE time >= #{since} ORDER BY time DESC
+    </select>
+    
+    <insert id="insert">
+        INSERT INTO earthquakes (id, time, magnitude, latitude, longitude, depth, location, active, created_at)
+        VALUES (#{id}, #{time}, #{magnitude}, #{latitude}, #{longitude}, #{depth}, #{location}, #{active}, #{createdAt})
+    </insert>
+    
+    <update id="updateActiveStatus">
+        UPDATE earthquakes SET active = #{active} WHERE id = #{id}
+    </update>
+    
+    <delete id="delete">
+        DELETE FROM earthquakes WHERE id = #{id}
+    </delete>
+    
+</mapper>

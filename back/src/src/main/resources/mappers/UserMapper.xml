@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ac.korea.gdg.disasterassistantforblind.modules.user.mapper.UserMapper">
+    
+    <select id="findById" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.user.model.User">
+        SELECT * FROM users WHERE id = #{id}
+    </select>
+    
+    <select id="findAll" resultType="kr.ac.korea.gdg.disasterassistantforblind.modules.user.model.User">
+        SELECT * FROM users
+    </select>
+    
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (id, password, created_at, updated_at, enabled)
+        VALUES (#{id}, #{password}, #{createdAt}, #{updatedAt}, #{enabled})
+    </insert>
+    
+    <update id="update">
+        UPDATE users SET updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+    
+    <update id="updatePassword">
+        UPDATE users SET password = #{password}, updated_at = #{updatedAt} WHERE id = #{id}
+    </update>
+    
+    <delete id="delete">
+        DELETE FROM users WHERE id = #{id}
+    </delete>
+
+    <select id="findByIdWithMedicalInfo" resultMap="userWithMedicalInfoMap">
+        SELECT u.*, m.id as medical_id
+        FROM users u
+                 LEFT JOIN medical_info m ON u.id = m.user_id
+        WHERE u.id = #{id}
+    </select>
+
+    <resultMap id="userWithMedicalInfoMap" type="kr.ac.korea.gdg.disasterassistantforblind.modules.user.model.User">
+        <id property="id" column="id"/>
+        <result property="email" column="email"/>
+        <result property="password" column="password"/>
+        <result property="name" column="name"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="enabled" column="enabled"/>
+        <association property="medicalInfo" column="medical_id" javaType="kr.ac.korea.gdg.disasterassistantforblind.modules.medical.model.MedicalInfo" select="kr.ac.korea.gdg.disasterassistantforblind.modules.medical.mapper.MedicalInfoMapper.findById"/>
+    </resultMap>
+    
+</mapper>
